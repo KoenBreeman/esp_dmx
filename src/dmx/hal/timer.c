@@ -69,13 +69,23 @@ bool dmx_timer_init(dmx_port_t dmx_num, void *isr_context, int isr_flags) {
       .resolution_hz = 1000000,  // 1MHz resolution timer
   };
   esp_err_t err = gptimer_new_timer(&timer_config, &timer->gptimer_handle);
-  if (err) {
-    return NULL;
+  if (err != ESP_OK) {
+    return false;
   }
   const gptimer_event_callbacks_t gptimer_cb = {.on_alarm = dmx_timer_isr};
-  gptimer_register_event_callbacks(timer->gptimer_handle, &gptimer_cb,
-                                   isr_context);
-  gptimer_enable(timer->gptimer_handle);
+  err = gptimer_register_event_callbacks(timer->gptimer_handle, &gptimer_cb,
+                                         isr_context);
+  if (err != ESP_OK) {
+    gptimer_del_timer(timer->gptimer_handle);
+    timer->gptimer_handle = NULL;
+    return false;
+  }
+  err = gptimer_enable(timer->gptimer_handle);
+  if (err != ESP_OK) {
+    gptimer_del_timer(timer->gptimer_handle);
+    timer->gptimer_handle = NULL;
+    return false;
+  }
 #else
   timer->group = dmx_num / 2;
 #ifdef CONFIG_IDF_TARGET_ESP32C3
@@ -91,8 +101,8 @@ bool dmx_timer_init(dmx_port_t dmx_num, void *isr_context, int isr_flags) {
       .auto_reload = true,
   };
   esp_err_t err = timer_init(timer->group, timer->idx, &timer_config);
-  if (err) {
-    return NULL;
+  if (err != ESP_OK) {
+    return false;
   }
   timer_isr_callback_add(timer->group, timer->idx, dmx_timer_isr, isr_context,
                          isr_flags);
@@ -105,8 +115,11 @@ bool dmx_timer_init(dmx_port_t dmx_num, void *isr_context, int isr_flags) {
 void dmx_timer_deinit(dmx_port_t dmx_num) {
   struct dmx_timer_t *timer = &dmx_timer_context[dmx_num];
 #if ESP_IDF_VERSION_MAJOR >= 5
-  gptimer_disable(timer->gptimer_handle);
-  gptimer_del_timer(timer->gptimer_handle);
+  if (timer->gptimer_handle) {
+    gptimer_disable(timer->gptimer_handle);
+    gptimer_del_timer(timer->gptimer_handle);
+    timer->gptimer_handle = NULL;
+  }
 #else
   timer_isr_callback_remove(timer->group, timer->idx);
   timer_deinit(timer->group, timer->idx);
