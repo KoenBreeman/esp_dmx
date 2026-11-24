@@ -3,6 +3,10 @@
 #include "dmx/include/types.h"
 #include "rdm/include/types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Returns the 48-bit unique ID of the desired DMX port. The specified
  * DMX driver must be installed before calling this function.
@@ -132,3 +136,7 @@ size_t rdm_write(dmx_port_t dmx_num, const rdm_header_t *header,
  * @return false if it is not valid.
  */
 bool rdm_format_is_valid(const char *format);
+
+#ifdef __cplusplus
+}
+#endif
